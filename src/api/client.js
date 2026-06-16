@@ -1,23 +1,71 @@
-// Cliente HTTP minimo que CONSOME a API NestJS (o backend nao e alterado).
-// Cada metodo mapeia 1:1 com um endpoint do MedicationsController.
+const API_V1_SUFFIX = /\/api\/v1\/?$/;
+
+function normalizeBaseUrl(url) {
+  return (url || '').trim().replace(/\/+$/, '');
+}
+
+function candidateBaseUrls(url) {
+  const base = normalizeBaseUrl(url);
+  if (!base) return [];
+
+  const alternate = API_V1_SUFFIX.test(base)
+    ? base.replace(API_V1_SUFFIX, '')
+    : `${base}/api/v1`;
+
+  return alternate && alternate !== base ? [base, alternate] : [base];
+}
+
+function parseErrorMessage(data, status) {
+  const message = data && data.message;
+  if (Array.isArray(message)) return message.join(' · ');
+  if (typeof message === 'string') return message;
+  if (typeof data?.error === 'string') return data.error;
+  return `Erro ${status}`;
+}
+
+async function readResponse(res) {
+  if (res.status === 204) return null;
+
+  const text = await res.text();
+  if (!text) return null;
+
+  try {
+    return JSON.parse(text);
+  } catch (_) {
+    if (!res.ok) return { message: text };
+    throw new Error('A API respondeu em um formato invalido.');
+  }
+}
 
 export function createApi(getBaseUrl) {
   async function request(path, options) {
-    const base = getBaseUrl().replace(/\/+$/, '');
-    const res = await fetch(base + path, {
-      headers: { 'Content-Type': 'application/json' },
-      ...options,
-    });
-    if (res.status === 204) return null;
-    const text = await res.text();
-    const data = text ? JSON.parse(text) : null;
-    if (!res.ok) {
-      const msg = data && data.message
-        ? (Array.isArray(data.message) ? data.message.join(' · ') : data.message)
-        : `Erro ${res.status}`;
-      throw new Error(msg);
+    const bases = candidateBaseUrls(getBaseUrl());
+    if (bases.length === 0) throw new Error('Configure a URL base da API.');
+
+    let lastError = null;
+
+    for (const base of bases) {
+      try {
+        const res = await fetch(base + path, {
+          headers: { 'Content-Type': 'application/json' },
+          ...options,
+        });
+        const data = await readResponse(res);
+
+        if (res.ok) return data;
+
+        const error = new Error(parseErrorMessage(data, res.status));
+        error.status = res.status;
+        lastError = error;
+
+        if (res.status !== 404) break;
+      } catch (error) {
+        lastError = error;
+        break;
+      }
     }
-    return data;
+
+    throw lastError || new Error('Nao foi possivel conectar ao backend.');
   }
 
   return {

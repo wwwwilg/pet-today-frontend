@@ -21,7 +21,7 @@ export function useMedications(showToast) {
 
   const load = useCallback(async () => {
     try {
-      const data = await api.listMedications({ status: 'active' });
+      const data = await api.listMedications();
       setMeds(Array.isArray(data) ? data : []);
       setOnline(true);
     } catch (_) {
@@ -62,11 +62,14 @@ export function useMedications(showToast) {
   }, [showToast]);
 
   const changeStatus = useCallback(async (med, status) => {
-    if (status !== 'active') setMeds((m) => m.filter((x) => x.id !== med.id));
-    else setMeds((m) => m.map((x) => (x.id === med.id ? { ...x, status } : x)));
     if (online) {
-      try { await api.updateMedicationStatus(med.id, status); }
+      try {
+        const updated = await api.updateMedicationStatus(med.id, status);
+        setMeds((m) => m.map((x) => (x.id === med.id ? updated : x)));
+      }
       catch (e) { showToast(e.message, 'err'); return; }
+    } else {
+      setMeds((m) => m.map((x) => (x.id === med.id ? { ...x, status } : x)));
     }
     showToast(
       status === 'paused' ? 'Tratamento pausado.'
@@ -76,29 +79,30 @@ export function useMedications(showToast) {
   }, [api, online, showToast]);
 
   const remove = useCallback(async (med) => {
-    setMeds((m) => m.filter((x) => x.id !== med.id));
     if (online) {
       try { await api.deleteMedication(med.id); }
       catch (e) { showToast(e.message, 'err'); return; }
     }
+    setMeds((m) => m.filter((x) => x.id !== med.id));
     showToast('Medicamento removido.');
   }, [api, online, showToast]);
 
   const save = useCallback(async (payload, id) => {
     if (id) {
-      setMeds((m) => m.map((x) => (x.id === id ? { ...x, ...payload } : x)));
+      let updated = { ...payload, id };
       if (online) {
-        try { await api.updateMedication(id, payload); }
+        try { updated = await api.updateMedication(id, payload); }
         catch (e) { showToast(e.message, 'err'); return false; }
       }
+      setMeds((m) => m.map((x) => (x.id === id ? { ...x, ...updated } : x)));
       showToast('Medicamento atualizado.');
     } else {
-      let created = null;
+      let created = { ...payload, id: 'local-' + Date.now() };
       if (online) {
         try { created = await api.createMedication(payload); }
         catch (e) { showToast(e.message, 'err'); return false; }
       }
-      setMeds((m) => [created || { ...payload, id: 'local-' + Date.now() }, ...m]);
+      setMeds((m) => [created, ...m]);
       showToast('Medicamento cadastrado.');
     }
     return true;

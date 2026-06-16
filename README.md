@@ -29,7 +29,7 @@ frontend-mobile/
 
 | Ação | Endpoint |
 |---|---|
-| Listar tratamentos ativos | `GET /medications?status=active` |
+| Listar medicamentos | `GET /medications` |
 | Cadastrar | `POST /medications` |
 | Editar | `PUT /medications/:id` |
 | Pausar / Concluir / Reativar | `PATCH /medications/:id/status` |

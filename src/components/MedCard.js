@@ -7,8 +7,12 @@ import { fmtDateShort } from '../utils/date';
 // Card de medicamento: barra de status semantica, badge, horario, frequencia,
 // tempo de tratamento (Dia X/Y), acao "marcar como feito" e detalhes expansiveis.
 export default function MedCard({ med, view, expanded, onToggleExpand, onDone, onUndo, onEdit, onStatus, onRemove }) {
-  const meta = DOSE[view.state];
   const done = view.state === 'feito';
+  const inactive = Boolean(med.status && med.status !== 'active');
+  const statusLabel = med.status === 'paused' ? 'Pausado' : med.status === 'finished' ? 'Concluido' : null;
+  const meta = inactive
+    ? { badge: statusLabel, bg: T.parchment, tx: T.deepTeal, bar: T.border }
+    : DOSE[view.state];
   const fillPct = Math.round((view.progress != null ? view.progress : 0.15) * 100);
 
   return (
@@ -19,7 +23,9 @@ export default function MedCard({ med, view, expanded, onToggleExpand, onDone, o
           <View style={s.icon}><Ionicons name="medical-outline" size={18} color={T.turf} /></View>
           <View style={{ flex: 1 }}>
             <Text style={s.name}>{med.name}</Text>
-            <View style={s.dosagePill}><Text style={s.dosageTx}>{med.dosage}</Text></View>
+            <View style={s.pills}>
+              <View style={s.dosagePill}><Text style={s.dosageTx}>{med.dosage}</Text></View>
+            </View>
           </View>
           <View style={[s.badge, { backgroundColor: meta.bg }]}>
             <Text style={[s.badgeTx, { color: meta.tx }]}>{meta.badge}</Text>
@@ -48,9 +54,16 @@ export default function MedCard({ med, view, expanded, onToggleExpand, onDone, o
         )}
 
         <View style={s.actions}>
-          <TouchableOpacity style={[s.doneBtn, done && s.doneBtnDone]} activeOpacity={0.85} onPress={done ? onUndo : onDone}>
+          <TouchableOpacity
+            style={[s.doneBtn, done && s.doneBtnDone, inactive && s.doneBtnDisabled]}
+            activeOpacity={0.85}
+            onPress={inactive ? undefined : done ? onUndo : onDone}
+            disabled={inactive}
+          >
             <Ionicons name={done ? 'checkmark-circle' : 'checkmark'} size={18} color={done ? T.turf : '#fff'} />
-            <Text style={[s.doneTx, done && s.doneTxDone]}>{done ? 'Concluido hoje' : 'Marcar como feito'}</Text>
+            <Text style={[s.doneTx, done && s.doneTxDone, inactive && s.doneTxDisabled]}>
+              {inactive ? 'Tratamento inativo' : done ? 'Concluido hoje' : 'Marcar como feito'}
+            </Text>
           </TouchableOpacity>
           <TouchableOpacity style={s.skip} onPress={onUndo} activeOpacity={0.7}>
             <Ionicons name="close" size={18} color={T.alertTx} />
@@ -73,8 +86,14 @@ export default function MedCard({ med, view, expanded, onToggleExpand, onDone, o
             </View>
             <View style={s.manage}>
               <TouchableOpacity style={s.mBtn} onPress={onEdit}><Text style={s.mBtnTx}>Editar</Text></TouchableOpacity>
-              <TouchableOpacity style={s.mBtn} onPress={() => onStatus('paused')}><Text style={s.mBtnTx}>Pausar</Text></TouchableOpacity>
-              <TouchableOpacity style={s.mBtn} onPress={() => onStatus('finished')}><Text style={s.mBtnTx}>Concluir</Text></TouchableOpacity>
+              {inactive ? (
+                <TouchableOpacity style={s.mBtn} onPress={() => onStatus('active')}><Text style={s.mBtnTx}>Reativar</Text></TouchableOpacity>
+              ) : (
+                <>
+                  <TouchableOpacity style={s.mBtn} onPress={() => onStatus('paused')}><Text style={s.mBtnTx}>Pausar</Text></TouchableOpacity>
+                  <TouchableOpacity style={s.mBtn} onPress={() => onStatus('finished')}><Text style={s.mBtnTx}>Concluir</Text></TouchableOpacity>
+                </>
+              )}
               <TouchableOpacity style={[s.mBtn, s.mBtnDanger]} onPress={onRemove}><Text style={s.mBtnDangerTx}>Remover</Text></TouchableOpacity>
             </View>
           </View>
@@ -91,7 +110,8 @@ const s = StyleSheet.create({
   head: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
   icon: { width: 34, height: 34, borderRadius: 10, backgroundColor: T.mint, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: T.borderGreen },
   name: { fontSize: 15, fontWeight: '500', color: T.evergreen },
-  dosagePill: { alignSelf: 'flex-start', backgroundColor: T.parchment, borderRadius: 100, paddingHorizontal: 8, paddingVertical: 2, marginTop: 4 },
+  pills: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 4 },
+  dosagePill: { alignSelf: 'flex-start', backgroundColor: T.parchment, borderRadius: 100, paddingHorizontal: 8, paddingVertical: 2 },
   dosageTx: { fontSize: 12, color: T.deepTeal },
   badge: { borderRadius: 100, paddingHorizontal: 10, paddingVertical: 3 },
   badgeTx: { fontSize: 11, fontWeight: '500' },
@@ -112,8 +132,10 @@ const s = StyleSheet.create({
   actions: { flexDirection: 'row', gap: 8, marginTop: 14 },
   doneBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: T.turf, borderRadius: 10, height: 44 },
   doneBtnDone: { backgroundColor: T.mint, borderWidth: 1, borderColor: T.borderGreen },
+  doneBtnDisabled: { backgroundColor: T.parchment, borderWidth: 1, borderColor: T.border },
   doneTx: { color: '#fff', fontSize: 14, fontWeight: '500' },
   doneTxDone: { color: T.turf },
+  doneTxDisabled: { color: T.deepTeal },
   skip: { width: 44, height: 44, borderRadius: 10, backgroundColor: T.alertBg, borderWidth: 1, borderColor: '#fca5a5', alignItems: 'center', justifyContent: 'center' },
 
   notesToggle: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 12, alignSelf: 'flex-start' },
